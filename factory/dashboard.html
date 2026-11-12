@@ -10,6 +10,10 @@
   header { display: flex; gap: 12px; align-items: baseline; padding: 14px 16px; border-bottom: 1px solid #334155; }
   h1 { font-size: 16px; margin: 0; }
   #status { color: #94a3b8; font-size: 12px; margin-left: auto; }
+  body > header { flex-wrap: wrap; }
+  #notify { color: #94a3b8; font-size: 12px; }
+  #notify button { margin-left: 6px; background: none; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 2px 8px; font: inherit; cursor: pointer; }
+  #notify button:hover, #notify button:focus-visible { border-color: #2dd4bf; outline: none; }
   #board { display: grid; grid-template-columns: repeat(6, minmax(170px, 1fr)); gap: 10px; padding: 16px; overflow-x: auto; }
   .col h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin: 0 0 8px; }
   .col.human h2 { color: #fb923c; }
@@ -39,7 +43,7 @@
 </style>
 </head>
 <body>
-<header><h1>Software factory</h1><span class="meta">factory/jobs/</span><span id="status">loading</span></header>
+<header><h1>Software factory</h1><span class="meta">factory/jobs/</span><span id="status">loading</span><span id="notify"></span></header>
 <main id="board"></main>
 <aside id="drawer" aria-label="Job files">
   <header><h1 id="dtitle"></h1><button id="close">Close</button></header>
@@ -54,6 +58,8 @@ const $ = (id) => document.getElementById(id)
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
 const get = async (url) => { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.text() }
 let open = null
+const WAITING = ['needs-info', 'needs-human']
+let seen = null
 
 async function loadJobs() {
   const doc = new DOMParser().parseFromString(await get('jobs/'), 'text/html')
@@ -116,9 +122,36 @@ async function refresh(job) {
 $('close').onclick = () => { open = null; $('drawer').classList.remove('open') }
 addEventListener('keydown', (e) => { if (e.key === 'Escape') $('close').onclick() })
 
+// Desktop notification when a job enters a waiting stage. The first successful poll only records stages, so a job that waits at page load stays quiet.
+function notifyWaiting(jobs) {
+  const baseline = !seen
+  seen ||= new Map()
+  for (const job of jobs) {
+    if (!baseline && WAITING.includes(job.stage) && seen.get(job.id) !== job.stage && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(`${job.id} is ${job.stage}`, { body: job.note ? `${job.title}\n${job.note}` : `${job.title}` }) } catch {}
+    }
+    seen.set(job.id, job.stage)
+  }
+}
+
+// Header control for the browser permission. It writes only when the state changed, so the button keeps focus between polls.
+const NOTIFY_TEXT = { unsupported: 'not supported', default: 'off', granted: 'on', denied: 'blocked by the browser' }
+function notifyControl() {
+  const state = 'Notification' in window ? Notification.permission : 'unsupported'
+  const box = $('notify')
+  if (box.dataset.state === state) return
+  box.dataset.state = state
+  box.textContent = `Notifications: ${NOTIFY_TEXT[state] || state}`
+  if (state !== 'default') return
+  const b = el('button', '', 'Turn on notifications')
+  b.onclick = async () => { try { await Notification.requestPermission() } catch {} notifyControl() }
+  box.append(b)
+}
+
 async function poll() {
+  notifyControl()
   let jobs = []
-  try { jobs = await loadJobs(); await Promise.all(jobs.map(liveRound)); $('status').textContent = `${jobs.length} jobs · ${new Date().toLocaleTimeString()}` }
+  try { jobs = await loadJobs(); notifyWaiting(jobs); await Promise.all(jobs.map(liveRound)); $('status').textContent = `${jobs.length} jobs · ${new Date().toLocaleTimeString()}` }
   catch { $('status').textContent = 'no factory/jobs/ folder yet' }
   $('board').replaceChildren(...COLS.map(([name, stages]) => {
     const col = el('section', 'col' + (name === 'Needs you' ? ' human' : ''))
