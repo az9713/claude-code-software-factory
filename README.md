@@ -13,7 +13,7 @@ This project follows the two software factory videos by ZazenCodes:
 
 The design, the stage names, the routing table and the cost method come from the v2 source code:
 [zazencodes-season-3/src/software-factory-claude-code-v2](https://github.com/zazencodes/zazencodes-season-3/tree/main/src/software-factory-claude-code-v2).
-That source has the GPLv3 licence. This repo is a derived work. If this repo becomes public, it must use GPLv3.
+That source has the GPLv3 licence. This repo is a derived work, so this repo also has the GPLv3 licence. See `LICENSE`.
 
 The v2 source does not run on Windows: `factory/bin/job` imports `fcntl`, and the scripts need `chmod +x` and
 `lsof`. This project is one Python file with the standard library only.
