@@ -22,6 +22,7 @@
   .card:hover, .card:focus-visible { border-color: #2dd4bf; outline: none; }
   .human .card { border-color: #fb923c; }
   .id { color: #94a3b8; font: 11px ui-monospace, monospace; }
+  .expensive { display: inline-block; margin: 4px 0 2px; font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; border: 1px solid #facc15; color: #facc15; background: #422006; }
   .title { margin: 2px 0 6px; }
   .meta, .note { color: #94a3b8; font-size: 12px; }
   .row { display: flex; gap: 4px; align-items: center; margin: 3px 0; flex-wrap: wrap; }
@@ -59,6 +60,7 @@ const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls)
 const get = async (url) => { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.text() }
 let open = null
 const WAITING = ['needs-info', 'needs-human']
+const EXPENSIVE_USD = 2.5 // A job with a cost above this value in USD gets the expensive mark on its card.
 let seen = null
 
 async function loadJobs() {
@@ -79,7 +81,10 @@ async function liveRound(job) {
 
 function card(job) {
   const c = el('button', 'card')
-  c.append(el('div', 'id', job.id), el('div', 'title', job.title))
+  const cost = job.cost_usd || 0
+  c.append(el('div', 'id', job.id))
+  if (cost > EXPENSIVE_USD) c.append(el('div', 'expensive', `expensive · over $${EXPENSIVE_USD.toFixed(2)}`))
+  c.append(el('div', 'title', job.title))
   for (let n = 1; n <= job.round; n++) {
     const row = el('div', 'row'), r = (job.rounds || {})[n] || {}
     row.append(el('span', 'meta', 'R' + n))
@@ -90,7 +95,7 @@ function card(job) {
     c.append(row)
   }
   const mins = Math.floor((new Date(job.finished || Date.now()) - new Date(job.created)) / 60000)
-  const meta = el('div', 'meta', `${job.stage} · $${(job.cost_usd || 0).toFixed(2)} · ${mins} min · issue #${job.issue}` + (job.pr ? ` · PR #${job.pr}` : ''))
+  const meta = el('div', 'meta', `${job.stage} · $${cost.toFixed(2)} · ${mins} min · issue #${job.issue}` + (job.pr ? ` · PR #${job.pr}` : ''))
   if (job.risk) meta.prepend(el('span', 'risk', job.risk + ' risk · '))
   c.append(meta)
   if (job.note && !['merged'].includes(job.stage)) c.append(el('div', 'note', job.note))
