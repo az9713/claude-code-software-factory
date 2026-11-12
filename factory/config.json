@@ -3,7 +3,7 @@
   "merge_method": "merge",
   "concurrency": 3,
   "max_rounds": 3,
-  "checks": [],
+  "checks": ["python factory/test_factory.py"],
   "labels": {
     "queue": "factory",
     "needs_info": "factory:needs-info",
