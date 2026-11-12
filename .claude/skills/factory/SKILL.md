@@ -43,6 +43,10 @@ A job gets a maximum of `max_rounds` build rounds. Then the script sends the job
 Run each command with the Bash tool, from the root of the main checkout. The stdin examples use a Bash
 heredoc. The PowerShell tool does not accept that syntax.
 
+Run `step` and `approve` with the Bash tool timeout set to 600000 (10 minutes). The gate can take more than
+2 minutes. If a `step` call still goes to the background, wait for its notification. Do not run `step` again
+for that job while the first call runs.
+
 | Command | Effect |
 |---|---|
 | `python factory/factory.py status` | Table of all jobs and all labeled issues. Column `action`: `new`, `start`, `hold`, `resume`, `wait`, `done`. Also finishes a job whose PR a person merged on GitHub. |
