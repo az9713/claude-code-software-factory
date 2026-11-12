@@ -90,6 +90,8 @@ python factory/test_factory.py
 The test makes a temporary bare repo as `origin` and walks jobs through each stage. The test writes the agent
 files itself. No agent runs, and no call goes to GitHub.
 
+The workflow `.github/workflows/self-check.yml` also runs the self-check on GitHub on each push and each pull request.
+
 ## Status
 
 - `factory/factory.py` passes the self-check.
