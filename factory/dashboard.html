@@ -92,12 +92,26 @@ function card(job) {
   return c
 }
 
+// File buttons use open.job, the newest job.json of the open job, so a click never shows an older stage.
+const list = (job) => $('files').replaceChildren(...job.files.map((f) => { const b = el('button', f === open.file ? 'on' : '', f); b.onclick = () => show(open.job, f); return b }))
+
 async function show(job, file) {
-  open = { id: job.id, file: file || (open && open.id === job.id && open.file) || job.files[0] }
+  open = { id: job.id, file: file || (open && open.id === job.id && open.file) || job.files[0], job }
   $('drawer').classList.add('open')
   $('dtitle').textContent = `${job.id} · ${job.stage}`
-  $('files').replaceChildren(...job.files.map((f) => { const b = el('button', f === open.file ? 'on' : '', f); b.onclick = () => show(job, f); return b }))
+  list(job)
   try { $('text').textContent = await get(`jobs/${job.id}/${open.file}`) } catch { $('text').textContent = '(file not found)' }
+}
+
+// Poll refresh of the open drawer. It keeps the selection and writes only what changed, so focus and scroll stay.
+async function refresh(job) {
+  open.job = job
+  $('dtitle').textContent = `${job.id} · ${job.stage}`
+  if (job.files.join('\n') !== [...$('files').children].map((b) => b.textContent).join('\n')) list(job)
+  const sel = open
+  let text
+  try { text = await get(`jobs/${job.id}/${sel.file}`) } catch { return }
+  if (open === sel && text !== $('text').textContent) $('text').textContent = text
 }
 $('close').onclick = () => { open = null; $('drawer').classList.remove('open') }
 addEventListener('keydown', (e) => { if (e.key === 'Escape') $('close').onclick() })
@@ -112,7 +126,7 @@ async function poll() {
     col.append(el('h2', '', `${name} (${mine.length})`), ...mine.map(card))
     return col
   }))
-  if (open) { const j = jobs.find((x) => x.id === open.id); if (j) $('dtitle').textContent = `${j.id} · ${j.stage}` }
+  if (open) { const j = jobs.find((x) => x.id === open.id); if (j) refresh(j) }
 }
 poll(); setInterval(poll, 3000)
 </script>
