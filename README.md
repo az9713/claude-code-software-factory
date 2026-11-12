@@ -78,6 +78,9 @@ To see the dashboard, run this command, then open `http://localhost:8765/dashboa
 python -m http.server 8765 --bind 127.0.0.1 --directory factory
 ```
 
+Click "Turn on notifications" on the dashboard to get a desktop notification when a job enters `needs-human` or
+`needs-info`. This works only while the dashboard page is open in a browser. A background tab is sufficient.
+
 ## Test
 
 ```
