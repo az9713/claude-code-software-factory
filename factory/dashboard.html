@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Software factory</title>
+<style>
+  body { margin: 0; background: #0f172a; color: #e2e8f0; font: 14px/1.45 system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 14px 16px; border-bottom: 1px solid #334155; }
+  h1 { font-size: 16px; margin: 0; }
+  #status { color: #94a3b8; font-size: 12px; margin-left: auto; }
+  #board { display: grid; grid-template-columns: repeat(6, minmax(170px, 1fr)); gap: 10px; padding: 16px; overflow-x: auto; }
+  .col h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #94a3b8; margin: 0 0 8px; }
+  .col.human h2 { color: #fb923c; }
+  .card { width: 100%; text-align: left; font: inherit; color: inherit; background: #1e293b; border: 1px solid #334155;
+          border-radius: 8px; padding: 10px; margin-bottom: 8px; cursor: pointer; }
+  .card:hover, .card:focus-visible { border-color: #2dd4bf; outline: none; }
+  .human .card { border-color: #fb923c; }
+  .id { color: #94a3b8; font: 11px ui-monospace, monospace; }
+  .title { margin: 2px 0 6px; }
+  .meta, .note { color: #94a3b8; font-size: 12px; }
+  .row { display: flex; gap: 4px; align-items: center; margin: 3px 0; flex-wrap: wrap; }
+  .chip { font: 11px ui-monospace, monospace; padding: 1px 6px; border-radius: 4px; border: 1px solid #334155; color: #94a3b8; }
+  .chip.PASS { background: #134e4a; border-color: #2dd4bf; color: #2dd4bf; }
+  .chip.FAIL, .chip.CHANGES { background: #7c2d12; border-color: #fb923c; color: #fb923c; }
+  .risk { color: #cbd5e1; }
+  #drawer { position: fixed; inset: 0 0 0 auto; width: min(760px, 100%); background: #0f172a; border-left: 1px solid #334155;
+            display: none; grid-template-rows: auto 1fr; }
+  #drawer.open { display: grid; }
+  #drawer header button { margin-left: auto; background: none; border: 1px solid #334155; color: #e2e8f0; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  #body { display: grid; grid-template-columns: 190px 1fr; min-height: 0; }
+  #files { border-right: 1px solid #334155; overflow: auto; padding: 8px; }
+  #files button { display: block; width: 100%; text-align: left; background: none; border: 0; color: #cbd5e1;
+                  font: 12px ui-monospace, monospace; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+  #files button.on, #files button:hover { background: #1e293b; color: #2dd4bf; }
+  pre { margin: 0; padding: 14px; overflow: auto; white-space: pre-wrap; font: 12.5px/1.5 ui-monospace, monospace; color: #cbd5e1; }
+  @media (max-width: 700px) { #body { grid-template-columns: 1fr; } #files { border-right: 0; border-bottom: 1px solid #334155; max-height: 130px; } }
+</style>
+</head>
+<body>
+<header><h1>Software factory</h1><span class="meta">factory/jobs/</span><span id="status">loading</span></header>
+<main id="board"></main>
+<aside id="drawer" aria-label="Job files">
+  <header><h1 id="dtitle"></h1><button id="close">Close</button></header>
+  <div id="body"><nav id="files"></nav><pre id="text"></pre></div>
+</aside>
+<script>
+// Serve with: python -m http.server 8765 --bind 127.0.0.1 --directory factory
+// The page reads the directory listing of jobs/ and each jobs/<id>/job.json. It never writes.
+const COLS = [['Intake + spec', ['queued', 'intake', 'needs-info', 'spec']], ['Build', ['build']], ['Gate + review', ['gate', 'review']],
+              ['Approve', ['approve']], ['Needs you', ['needs-human']], ['Done', ['merged', 'rejected']]]
+const $ = (id) => document.getElementById(id)
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e }
+const get = async (url) => { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(r.status); return r.text() }
+let open = null
+
+async function loadJobs() {
+  const doc = new DOMParser().parseFromString(await get('jobs/'), 'text/html')
+  const ids = [...doc.querySelectorAll('a')].map((a) => a.getAttribute('href')).filter((h) => /^\d{3}-.*\/$/.test(h)).map((h) => h.slice(0, -1))
+  const jobs = await Promise.all(ids.map((id) => get(`jobs/${id}/job.json`).then(JSON.parse).catch(() => null)))
+  return jobs.filter(Boolean)
+}
+
+// job.json holds the verdicts as of the last script run. Reviews of the current round arrive between runs, so read those heads here.
+async function liveRound(job) {
+  if (job.stage !== 'review') return
+  const r = (job.rounds[job.round] ||= {})
+  await Promise.all(Object.keys(job.reviewers).map(async (lens) => {
+    try { r[`review-${lens}`] = ((await get(`jobs/${job.id}/round-${job.round}/review-${lens}.md`)).match(/^VERDICT:\s*(\w+)/) || [])[1] || '' } catch {}
+  }))
+}
+
+function card(job) {
+  const c = el('button', 'card')
+  c.append(el('div', 'id', job.id), el('div', 'title', job.title))
+  for (let n = 1; n <= job.round; n++) {
+    const row = el('div', 'row'), r = (job.rounds || {})[n] || {}
+    row.append(el('span', 'meta', 'R' + n))
+    for (const k of ['checks', ...Object.keys(job.reviewers || {}).map((l) => 'review-' + l), 'merge-checks']) {
+      if (k === 'merge-checks' && !(k in r)) continue
+      row.append(el('span', 'chip ' + (r[k] || ''), k.replace('review-', '').replace('checks', 'gate')))
+    }
+    c.append(row)
+  }
+  const mins = Math.floor((new Date(job.finished || Date.now()) - new Date(job.created)) / 60000)
+  const meta = el('div', 'meta', `${job.stage} · $${(job.cost_usd || 0).toFixed(2)} · ${mins} min · issue #${job.issue}` + (job.pr ? ` · PR #${job.pr}` : ''))
+  if (job.risk) meta.prepend(el('span', 'risk', job.risk + ' risk · '))
+  c.append(meta)
+  if (job.note && !['merged'].includes(job.stage)) c.append(el('div', 'note', job.note))
+  c.onclick = () => show(job)
+  return c
+}
+
+async function show(job, file) {
+  open = { id: job.id, file: file || (open && open.id === job.id && open.file) || job.files[0] }
+  $('drawer').classList.add('open')
+  $('dtitle').textContent = `${job.id} · ${job.stage}`
+  $('files').replaceChildren(...job.files.map((f) => { const b = el('button', f === open.file ? 'on' : '', f); b.onclick = () => show(job, f); return b }))
+  try { $('text').textContent = await get(`jobs/${job.id}/${open.file}`) } catch { $('text').textContent = '(file not found)' }
+}
+$('close').onclick = () => { open = null; $('drawer').classList.remove('open') }
+addEventListener('keydown', (e) => { if (e.key === 'Escape') $('close').onclick() })
+
+async function poll() {
+  let jobs = []
+  try { jobs = await loadJobs(); await Promise.all(jobs.map(liveRound)); $('status').textContent = `${jobs.length} jobs · ${new Date().toLocaleTimeString()}` }
+  catch { $('status').textContent = 'no factory/jobs/ folder yet' }
+  $('board').replaceChildren(...COLS.map(([name, stages]) => {
+    const col = el('section', 'col' + (name === 'Needs you' ? ' human' : ''))
+    const mine = jobs.filter((j) => stages.includes(j.stage))
+    col.append(el('h2', '', `${name} (${mine.length})`), ...mine.map(card))
+    return col
+  }))
+  if (open) { const j = jobs.find((x) => x.id === open.id); if (j) $('dtitle').textContent = `${j.id} · ${j.stage}` }
+}
+poll(); setInterval(poll, 3000)
+</script>
+</body>
+</html>
