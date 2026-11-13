@@ -94,6 +94,9 @@ The workflow `.github/workflows/self-check.yml` also runs the self-check on GitH
 
 ## Status
 
+The full story of the test runs, written for readers who are new to git and CI:
+[Development journey](https://az9713.github.io/claude-code-software-factory/DEVELOPMENT-JOURNEY.html).
+
 - `factory/factory.py` passes the self-check, on Windows and in GitHub Actions (`windows-latest`).
 - The factory ran 5 real jobs on this repo (issues #1, #3, #5, #7, #9). The gate runs the self-check.
 
