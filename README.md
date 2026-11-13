@@ -36,7 +36,7 @@ GitHub issue with the label `factory`
 - `needs-info`: the job waits for the author of the issue.
 - `needs-human`: the PR waits for you. Merge the PR on GitHub to approve it.
 - A job gets a maximum of `max_rounds` build rounds (default 3). Then the job goes to `needs-human`.
-- One orchestrator session runs a maximum of `concurrency` jobs at one time (default 3).
+- One orchestrator session runs a maximum of `concurrency` jobs at one time (default 2).
 
 ## Files
 
