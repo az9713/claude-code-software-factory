@@ -94,10 +94,19 @@ The workflow `.github/workflows/self-check.yml` also runs the self-check on GitH
 
 ## Status
 
-- `factory/factory.py` passes the self-check.
-- The skill and the eight agents did not run on a real issue yet.
-- This repo has no project code. `checks` is empty, so the gate fails each job here. Install the factory in a
-  project that has tests.
+- `factory/factory.py` passes the self-check, on Windows and in GitHub Actions (`windows-latest`).
+- The factory ran 5 real jobs on this repo (issues #1, #3, #5, #7, #9). The gate runs the self-check.
+
+  | Job | Path | Result |
+  |---|---|---|
+  | 001, 002 | intake ACCEPT, all PASS, APPROVE | merged with no human |
+  | 003 | ESCALATE, feedback, round 2, ESCALATE, `approve` | merged by the user |
+  | 004 | intake NEEDS-INFO, answer with `/factory`, all PASS, APPROVE | merged with no human |
+  | 005 | change to a protected path; spec built only the allowed part; ESCALATE, `reject` | rejected |
+
+- Not seen on a real job: gate FAIL, a CHANGES verdict, the round limit, and the builder Stop hook. The
+  self-check tests the script part of each one. No real agent has yet corrected its own work after a FAIL or
+  a CHANGES.
 - The UX and UI reviewers open pages only if `agent-browser` is installed. If it is not installed, they read
   the code.
 - The cost figure is the API price of the agents of a job, from the author's price table. On a subscription
